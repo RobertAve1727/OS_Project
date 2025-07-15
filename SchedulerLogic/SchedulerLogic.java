@@ -37,8 +37,22 @@ public class SchedulerLogic {
                     currentTime++;
                 }
             }
+
+            p.responseTime = currentTime - p.arrivalTime;
+
+            for (int i = 0; i < p.burstTime; i++) {
+                executionLog.add(p.pid); 
+                currentTime++;
+            }
+
+            p.completionTime = currentTime;
+            p.turnaroundTime = p.completionTime - p.arrivalTime;
+            p.waitingTime = p.turnaroundTime - p.burstTime;
+
+            prevPid = p.pid;
         }
+
     return processes;
-    }
+}
 
 }
