@@ -52,6 +52,17 @@ public class SchedulerLogic {
             prevPid = p.pid;
         }
 
+    public static List<Process> sjf(List<Process> processes) {
+        executionLog.clear();
+        
+        List<Process> readyQueue = new ArrayList<>();
+        List<Process> completed = new ArrayList<>();
+        int currentTime = 0;
+        int index = 0;
+        String prevPid = "";
+
+        processes.sort(Comparator.comparingInt(p -> p.arrivalTime));
+
     return processes;
 }
 
