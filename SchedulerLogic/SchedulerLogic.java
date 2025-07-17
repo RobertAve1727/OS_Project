@@ -51,6 +51,8 @@ public class SchedulerLogic {
 
             prevPid = p.pid;
         }
+        return processes;
+    }
 
     public static List<Process> sjf(List<Process> processes) {
         executionLog.clear();
@@ -63,7 +65,40 @@ public class SchedulerLogic {
 
         processes.sort(Comparator.comparingInt(p -> p.arrivalTime));
 
-    return processes;
-}
+        while (completed.size() < processes.size()) {
+            while (index < processes.size() && processes.get(index).arrivalTime <= currentTime) {
+                readyQueue.add(processes.get(index++));
+            }
+
+            readyQueue.sort(Comparator.comparingInt(p -> p.burstTime));
+
+            if (!readyQueue.isEmpty()) {
+                Process p = readyQueue.remove(0);
+
+                if (!prevPid.isEmpty() && !prevPid.equals(p.pid)) {
+                    for (int i = 0; i < contextSwitchDelay; i++) {
+                        executionLog.add("CS");
+                        currentTime++;
+                    }
+                }
+
+                p.responseTime = currentTime - p.arrivalTime;
+                for (int i = 0; i < p.burstTime; i++) {
+                    executionLog.add(p.pid);
+                    currentTime++;
+                }
+
+                p.completionTime = currentTime;
+                p.turnaroundTime = p.completionTime - p.arrivalTime;
+                p.waitingTime = p.turnaroundTime - p.burstTime;
+                completed.add(p);
+                prevPid = p.pid;
+            } else {
+                executionLog.add("IDLE");
+                currentTime++;
+            }
+        }
+        return completed;
+    }
 
 }
