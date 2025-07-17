@@ -101,4 +101,61 @@ public class SchedulerLogic {
         return completed;
     }
 
+    public static List<Process> srtf(List<Process> processes) {
+        executionLog.clear();
+        int time = 0;
+        int completed = 0;
+        String prevPid = "";
+        List<Process> result = new ArrayList<>();
+
+        processes.sort(Comparator.comparingInt(p -> p.arrivalTime));
+
+        while (completed < processes.size()) {
+            Process shortest = null;
+            int minRem = Integer.MAX_VALUE;
+
+            for (Process p : processes) {
+                if (p.arrivalTime <= time && p.remainingTime > 0 && p.remainingTime < minRem) {
+                    shortest = p;
+                    minRem = p.remainingTime;
+                }
+            }
+
+            if (shortest == null) {
+                executionLog.add("IDLE");
+                time++;
+                continue;
+            }
+
+            if (!shortest.pid.equals(prevPid) && !prevPid.isEmpty()) {
+                for (int i = 0; i < contextSwitchDelay; i++) {
+                    executionLog.add("CS");
+                    time++;
+                }
+            }
+
+            if (!shortest.started) {
+                shortest.responseTime = time - shortest.arrivalTime;
+                shortest.started = true;
+            }
+
+            shortest.remainingTime--;
+            executionLog.add(shortest.pid);
+            time++;
+
+            if (shortest.remainingTime == 0) {
+                shortest.completionTime = time;
+                shortest.turnaroundTime = shortest.completionTime - shortest.arrivalTime;
+                shortest.waitingTime = shortest.turnaroundTime - shortest.burstTime;
+                result.add(shortest);
+                completed++;
+            }
+
+            prevPid = shortest.pid;
+        }
+
+        return result;
+    }
+    
+
 }
