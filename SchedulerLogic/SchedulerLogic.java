@@ -222,42 +222,58 @@ public class SchedulerLogic {
 
     public static List<Process> mlfq(List<Process> processes, int baseQuantum) {
         executionLog.clear();
-        Queue<Process>[] queues = new Queue[4];
-        for (int i = 0; i < 4; i++) queues[i] = new LinkedList<>();
+
+        // 4 levels of queues
+        ArrayList<Process>[] queues = new ArrayList[4];
+        for (int i = 0; i < 4; i++) queues[i] = new ArrayList<>();
 
         List<Process> result = new ArrayList<>();
-        List<Process> all = new ArrayList<>(processes);
-        processes.sort(Comparator.comparingInt(p -> p.arrivalTime));
+        List<Process> all = new ArrayList<>(processes);  
+        all.sort(Comparator.comparingInt(p -> p.arrivalTime));  
 
-        int time = 0, completed = 0, index = 0;
         int[] quantums = { baseQuantum, baseQuantum * 2, baseQuantum * 4, baseQuantum * 8 };
-        Map<String, Integer> levelMap = new HashMap<>();
+        int time = 0, completed = 0, index = 0;
         String prevPid = "";
 
+        // Array to track levels of each process
+        String[] pidList = new String[processes.size()];
+        int[] levels = new int[processes.size()];
+        for (int i = 0; i < processes.size(); i++) {
+            pidList[i] = processes.get(i).pid;
+            levels[i] = 0;
+        }
+
         while (completed < processes.size()) {
+            // Enqueue newly arrived processes to Q0
             while (index < all.size() && all.get(index).arrivalTime <= time) {
                 queues[0].add(all.get(index));
-                levelMap.put(all.get(index).pid, 0);
+                for (int i = 0; i < pidList.length; i++) {
+                    if (pidList[i].equals(all.get(index).pid)) {
+                        levels[i] = 0;
+                        break;
+                    }
+                }
                 index++;
             }
 
+            // Select next process from highest-priority non-empty queue
             Process current = null;
             int currentLevel = -1;
-
             for (int i = 0; i < 4; i++) {
                 if (!queues[i].isEmpty()) {
-                    current = queues[i].poll();
+                    current = queues[i].remove(0);
                     currentLevel = i;
                     break;
                 }
             }
-
+            
             if (current == null) {
                 executionLog.add("IDLE");
                 time++;
                 continue;
             }
 
+            // Context switch delay
             if (!prevPid.isEmpty() && !prevPid.equals(current.pid)) {
                 for (int i = 0; i < contextSwitchDelay; i++) {
                     executionLog.add("CS");
@@ -273,6 +289,7 @@ public class SchedulerLogic {
             int q = quantums[currentLevel];
             int execTime = Math.min(q, current.remainingTime);
 
+            // Simulate execution
             for (int i = 0; i < execTime; i++) {
                 executionLog.add(current.pid + "[Q" + currentLevel + "]");
                 time++;
@@ -280,16 +297,28 @@ public class SchedulerLogic {
 
             current.remainingTime -= execTime;
 
+            // Add new arrivals again during execution
             while (index < all.size() && all.get(index).arrivalTime <= time) {
                 queues[0].add(all.get(index));
-                levelMap.put(all.get(index).pid, 0);
+                for (int i = 0; i < pidList.length; i++) {
+                    if (pidList[i].equals(all.get(index).pid)) {
+                        levels[i] = 0;
+                        break;
+                    }
+                }
                 index++;
             }
 
             if (current.remainingTime > 0) {
+                // Demote to next lower level (up to Q3)
                 int nextLevel = Math.min(3, currentLevel + 1);
                 queues[nextLevel].add(current);
-                levelMap.put(current.pid, nextLevel);
+                for (int i = 0; i < pidList.length; i++) {
+                    if (pidList[i].equals(current.pid)) {
+                        levels[i] = nextLevel;
+                        break;
+                    }
+                }
             } else {
                 current.completionTime = time;
                 current.turnaroundTime = current.completionTime - current.arrivalTime;
