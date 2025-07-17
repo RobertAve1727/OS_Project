@@ -182,8 +182,41 @@ public class SchedulerLogic {
                         currentTime++;
                     }
                 }
+
+                if (!p.started) {
+                    p.responseTime = currentTime - p.arrivalTime;
+                    p.started = true;
+                }
+
+                int execTime = Math.min(quantum, p.remainingTime);
+                for (int i = 0; i < execTime; i++) {
+                    executionLog.add(p.pid);
+                    currentTime++;
+                }
+
+                p.remainingTime -= execTime;
+
+                while (index < processes.size() && processes.get(index).arrivalTime <= currentTime) {
+                    queue.offer(processes.get(index++));
+                }
+
+                if (p.remainingTime > 0) {
+                    queue.offer(p);
+                } else {
+                    p.completionTime = currentTime;
+                    p.turnaroundTime = p.completionTime - p.arrivalTime;
+                    p.waitingTime = p.turnaroundTime - p.burstTime;
+                    result.add(p);
+                    completed++;
+                }
+
+                prevPid = p.pid;
+            } else {
+                executionLog.add("IDLE");
+                currentTime++;
             }
         }
 
+        return result;
     }
 }
