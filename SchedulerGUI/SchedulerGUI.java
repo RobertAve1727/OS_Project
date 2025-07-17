@@ -189,11 +189,16 @@ public class SchedulerGUI extends JFrame {
                 int at = Integer.parseInt(atField.getText());
                 int bt = Integer.parseInt(btField.getText());
                 
-                if (at < 0 || bt < 1) {
-                    JOptionPane.showMessageDialog(this, "Arrival time must be 0 or greater, Burst Time must be 1 or greater.");
+                if (at < 0) {
+                    JOptionPane.showMessageDialog(this, "Arrival time must be 0 or greater.");
                     return;
                 }
-
+                
+                if (bt < 1) {
+                    JOptionPane.showMessageDialog(this, "Burst Time must be 1 or greater.");
+                    return;
+                }
+                
                 String pid = "P" + pidCounter++;
                 tableModel.addRow(new Object[]{pid, at, bt});
             } catch (NumberFormatException e) {
