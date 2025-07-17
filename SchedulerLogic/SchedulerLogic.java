@@ -219,4 +219,97 @@ public class SchedulerLogic {
 
         return result;
     }
+
+    public static List<Process> mlfq(List<Process> processes, int baseQuantum) {
+        executionLog.clear();
+        Queue<Process>[] queues = new Queue[4];
+        for (int i = 0; i < 4; i++) queues[i] = new LinkedList<>();
+
+        List<Process> result = new ArrayList<>();
+        List<Process> all = new ArrayList<>(processes);
+        processes.sort(Comparator.comparingInt(p -> p.arrivalTime));
+
+        int time = 0, completed = 0, index = 0;
+        int[] quantums = { baseQuantum, baseQuantum * 2, baseQuantum * 4, baseQuantum * 8 };
+        Map<String, Integer> levelMap = new HashMap<>();
+        String prevPid = "";
+
+        while (completed < processes.size()) {
+            while (index < all.size() && all.get(index).arrivalTime <= time) {
+                queues[0].add(all.get(index));
+                levelMap.put(all.get(index).pid, 0);
+                index++;
+            }
+
+            Process current = null;
+            int currentLevel = -1;
+
+            for (int i = 0; i < 4; i++) {
+                if (!queues[i].isEmpty()) {
+                    current = queues[i].poll();
+                    currentLevel = i;
+                    break;
+                }
+            }
+
+            if (current == null) {
+                executionLog.add("IDLE");
+                time++;
+                continue;
+            }
+
+            if (!prevPid.isEmpty() && !prevPid.equals(current.pid)) {
+                for (int i = 0; i < contextSwitchDelay; i++) {
+                    executionLog.add("CS");
+                    time++;
+                }
+            }
+
+            if (!current.started) {
+                current.responseTime = time - current.arrivalTime;
+                current.started = true;
+            }
+
+            int q = quantums[currentLevel];
+            int execTime = Math.min(q, current.remainingTime);
+
+            for (int i = 0; i < execTime; i++) {
+                executionLog.add(current.pid + "[Q" + currentLevel + "]");
+                time++;
+            }
+
+            current.remainingTime -= execTime;
+
+            while (index < all.size() && all.get(index).arrivalTime <= time) {
+                queues[0].add(all.get(index));
+                levelMap.put(all.get(index).pid, 0);
+                index++;
+            }
+
+            if (current.remainingTime > 0) {
+                int nextLevel = Math.min(3, currentLevel + 1);
+                queues[nextLevel].add(current);
+                levelMap.put(current.pid, nextLevel);
+            } else {
+                current.completionTime = time;
+                current.turnaroundTime = current.completionTime - current.arrivalTime;
+                current.waitingTime = current.turnaroundTime - current.burstTime;
+                result.add(current);
+                completed++;
+            }
+
+            prevPid = current.pid;
+        }
+
+        return result;
+    }
+
+    public static double average(List<Process> processes, String metric) {
+        return processes.stream().mapToDouble(p -> {
+            switch (metric) {
+                case "TAT": return p.turnaroundTime;
+                case "RT": return p.responseTime;
+                default: return 0;
+        }}).average().orElse(0);
+    }
 }
