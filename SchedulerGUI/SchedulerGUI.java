@@ -1,3 +1,5 @@
+import SchedulerLogic.SchedulerLogic;
+
 import javax.swing.*;
 import javax.swing.table.DefaultTableModel;
 import java.awt.*;
@@ -13,66 +15,84 @@ public class SchedulerGUI extends JFrame {
     private GanttChartPanel ganttChartPanel;
     private JPanel animationPanelContainer;
 
+    private int pidCounter = 1;
+
     public SchedulerGUI() {
         setTitle("CPU Scheduling Simulator");
         setDefaultCloseOperation(EXIT_ON_CLOSE);
-        setSize(1000, 700);
+        setSize(1200, 800);
         setLayout(new BorderLayout());
 
         // Top controls
         JPanel topPanel = new JPanel();
 
-        algorithmBox = new JComboBox<>(new String[]{"FCFS", "SJF", "SRTF", "Round Robin", "MLFQ"});
+        algorithmBox = new JComboBox<>(new String[]{"FIFO", "SJF", "SRTF", "Round Robin", "MLFQ"});
         quantumField = new JTextField("2", 5);
         baseQuantumField = new JTextField("2", 5);
         contextSwitchField = new JTextField("0", 5);
-        JButton runButton = new JButton("Run");
-        JButton randomButton = new JButton("Random Generator"); // 🔹 Added
+        JButton runButton = createStyledButton("Run");
+        JButton addProcessButton = createStyledButton("Add Process");
+        JButton randomButton = createStyledButton("Randomizer");
+        JButton resetButton = createStyledButton("Reset");
 
         topPanel.add(new JLabel("Algorithm:")); topPanel.add(algorithmBox);
         topPanel.add(new JLabel("Quantum:")); topPanel.add(quantumField);
         topPanel.add(new JLabel("MLFQ Base:")); topPanel.add(baseQuantumField);
         topPanel.add(new JLabel("Context Switch:")); topPanel.add(contextSwitchField);
+        topPanel.add(addProcessButton);
+        topPanel.add(randomButton);
         topPanel.add(runButton);
-        topPanel.add(randomButton); // 🔹 Added
+        topPanel.add(resetButton);
 
         add(topPanel, BorderLayout.NORTH);
 
-        // Table for process input
+        // Process table
         tableModel = new DefaultTableModel(new Object[]{"PID", "Arrival", "Burst"}, 0);
         processTable = new JTable(tableModel);
         JScrollPane tableScroll = new JScrollPane(processTable);
-
         JPanel centerPanel = new JPanel(new BorderLayout());
         centerPanel.add(tableScroll, BorderLayout.CENTER);
 
-        add(centerPanel, BorderLayout.CENTER);
+        // Result 
+        JPanel southPanel = new JPanel(new BorderLayout());
 
-
-        // Fill with some default data
-        tableModel.addRow(new Object[]{"P1", 0, 5});
-        tableModel.addRow(new Object[]{"P2", 1, 3});
-        tableModel.addRow(new Object[]{"P3", 2, 8});
-        tableModel.addRow(new Object[]{"P4", 3, 6});
-
-        // Result + Gantt Panel Container (south)
-        JPanel southPanel = new JPanel();
-        southPanel.setLayout(new BorderLayout());
-
-        resultArea = new JTextArea(8, 80);
-        resultArea.setFont(new Font("Monospaced", Font.PLAIN, 12));
-        southPanel.add(new JScrollPane(resultArea), BorderLayout.NORTH);
-
+        // Gantt Chart Panel Container 
         animationPanelContainer = new JPanel(new BorderLayout());
+        animationPanelContainer.setBorder(BorderFactory.createTitledBorder("Gantt Chart"));
+        animationPanelContainer.setPreferredSize(new Dimension(1000, 250));
         southPanel.add(animationPanelContainer, BorderLayout.CENTER);
 
-        add(southPanel, BorderLayout.SOUTH);
+        // Result Area
+        resultArea = new JTextArea(6, 80);
+        resultArea.setFont(new Font("Monospaced", Font.PLAIN, 16));
+        resultArea.setEditable(false);
+        resultArea.setBorder(BorderFactory.createTitledBorder("Results"));
+        southPanel.add(resultArea, BorderLayout.SOUTH);
 
-        // 🔹 Action Listeners
+        JPanel mainCenterPanel = new JPanel();
+        mainCenterPanel.setLayout(new BorderLayout());
+        mainCenterPanel.add(centerPanel, BorderLayout.NORTH);
+        mainCenterPanel.add(southPanel, BorderLayout.CENTER);
+
+        add(mainCenterPanel, BorderLayout.CENTER);
+
+
+        // Listeners
         runButton.addActionListener(e -> runScheduler());
-        randomButton.addActionListener(e -> generateRandomProcesses()); // 🔹 Added
+        randomButton.addActionListener(e -> generateRandomProcesses());
+        addProcessButton.addActionListener(e -> showAddProcessDialog());
+        resetButton.addActionListener(e -> resetAll());
 
         setVisible(true);
+    }
+
+    private JButton createStyledButton(String text) {
+        JButton button = new JButton(text);
+        button.setFont(new Font("SansSerif", Font.BOLD, 15));
+        button.setBackground(new Color(230, 230, 230));
+        button.setFocusPainted(false);
+        button.setPreferredSize(new Dimension(160, 35));
+        return button;
     }
 
     private void runScheduler() {
@@ -94,53 +114,96 @@ public class SchedulerGUI extends JFrame {
         List<Process> result = null;
 
         switch (algo) {
-            case "FCFS":
-                result = SchedulerLogic.fifo(processes);
-                break;
-            case "SJF":
-                result = SchedulerLogic.sjf(processes);
-                break;
+            case "FIFO": result = SchedulerLogic.fifo(processes); break;
+            case "SJF": result = SchedulerLogic.sjf(processes); break;
+            case "SRTF": result = SchedulerLogic.srtf(processes); break;
+            case "Round Robin": result = SchedulerLogic.roundRobin(processes, quantum); break;
+            case "MLFQ": result = SchedulerLogic.mlfq(processes, baseQuantum); break;
         }
 
+        displayResults(result);
         animateGanttChart();
     }
 
+    private void displayResults(List<Process> processes) {
+        StringBuilder sb = new StringBuilder();
+
+        sb.append(String.format("%-5s %-12s %-10s %-15s %-15s %-15s\n",
+                "PID", "Arrival", "Burst", "Completion", "Turnaround", "Response"));
+
+        for (Process p : processes) {
+            sb.append(String.format("%-5s %-12d %-10d %-15d %-15d %-15d\n",
+                    p.pid, p.arrivalTime, p.burstTime, p.completionTime, p.turnaroundTime, p.responseTime));
+        }
+
+        double avgTAT = SchedulerLogic.average(processes, "TAT");
+        double avgRT = SchedulerLogic.average(processes, "RT");
+
+        sb.append("\nAverage Turnaround Time: " + String.format("%.2f", avgTAT));
+        sb.append("\nAverage Response Time: " + String.format("%.2f", avgRT));
+
+        resultArea.setText(sb.toString());
+    }
 
     private void animateGanttChart() {
         animationPanelContainer.removeAll();
-
-        ganttChartPanel = new GanttChartPanel(new ArrayList<>(SchedulerLogic.executionLog));
-        JScrollPane scroll = new JScrollPane(ganttChartPanel);
-        animationPanelContainer.add(scroll, BorderLayout.CENTER);
-
+        ganttChartPanel = new GanttChartPanel(SchedulerLogic.executionLog);
+        animationPanelContainer.add(new JScrollPane(ganttChartPanel), BorderLayout.CENTER);
         ganttChartPanel.startAnimation();
         animationPanelContainer.revalidate();
         animationPanelContainer.repaint();
     }
 
-    // 🔹 Added random generator method
     private void generateRandomProcesses() {
         try {
             String inputCount = JOptionPane.showInputDialog(this, "Number of processes:");
-            String inputMaxArrival = JOptionPane.showInputDialog(this, "Maximum arrival time:");
-            String inputMaxBurst = JOptionPane.showInputDialog(this, "Maximum burst time:");
-
             int count = Integer.parseInt(inputCount);
-            int maxArrival = Integer.parseInt(inputMaxArrival);
-            int maxBurst = Integer.parseInt(inputMaxBurst);
-
-            tableModel.setRowCount(0); // Clear table
             Random rand = new Random();
+            tableModel.setRowCount(0);
+            pidCounter = 1;
 
-            for (int i = 1; i <= count; i++) {
-                String pid = "P" + i;
-                int at = rand.nextInt(maxArrival + 1);
-                int bt = rand.nextInt(maxBurst) + 1; // minimum burst time is 1
+            for (int i = 0; i < count; i++) {
+                String pid = "P" + pidCounter++;
+                int at = rand.nextInt(10);
+                int bt = rand.nextInt(9) + 1;
                 tableModel.addRow(new Object[]{pid, at, bt});
             }
-        } catch (Exception ex) {
-            JOptionPane.showMessageDialog(this, "Invalid input. Please enter valid numbers.");
+        } catch (Exception e) {
+            JOptionPane.showMessageDialog(this, "Please enter a valid number.");
         }
+    }
+
+    private void showAddProcessDialog() {
+        JTextField atField = new JTextField(5);
+        JTextField btField = new JTextField(5);
+
+        JPanel panel = new JPanel(new GridLayout(2, 2));
+        panel.add(new JLabel("Arrival Time:"));
+        panel.add(atField);
+        panel.add(new JLabel("Burst Time:"));
+        panel.add(btField);
+
+        int result = JOptionPane.showConfirmDialog(null, panel, "Add Process",
+                JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
+
+        if (result == JOptionPane.OK_OPTION) {
+            try {
+                int at = Integer.parseInt(atField.getText());
+                int bt = Integer.parseInt(btField.getText());
+                String pid = "P" + pidCounter++;
+                tableModel.addRow(new Object[]{pid, at, bt});
+            } catch (Exception e) {
+                JOptionPane.showMessageDialog(this, "Invalid input. Please enter numbers.");
+            }
+        }
+    }
+
+    private void resetAll() {
+        tableModel.setRowCount(0);
+        resultArea.setText("");
+        animationPanelContainer.removeAll();
+        animationPanelContainer.repaint();
+        pidCounter = 1;
     }
 
     public static void main(String[] args) {
