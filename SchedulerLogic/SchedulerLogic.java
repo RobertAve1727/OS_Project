@@ -159,22 +159,24 @@ public class SchedulerLogic {
 
     public static List<Process> roundRobin(List<Process> processes, int quantum) {
         executionLog.clear();
-        Queue<Process> queue = new LinkedList<>();
+        List<Process> queue = new ArrayList<>();  
         List<Process> result = new ArrayList<>();
+
         int currentTime = 0;
         int completed = 0;
         int index = 0;
         String prevPid = "";
 
-        processes.sort(Comparator.comparingInt(p -> p.arrivalTime));
+        processes.sort(Comparator.comparingInt(p -> p.arrivalTime));  
 
         while (completed < processes.size()) {
             while (index < processes.size() && processes.get(index).arrivalTime <= currentTime) {
-                queue.offer(processes.get(index++));
+                queue.add(processes.get(index));
+                index++;
             }
 
             if (!queue.isEmpty()) {
-                Process p = queue.poll();
+                Process p = queue.remove(0); 
 
                 if (!prevPid.isEmpty() && !prevPid.equals(p.pid)) {
                     for (int i = 0; i < contextSwitchDelay; i++) {
@@ -197,11 +199,12 @@ public class SchedulerLogic {
                 p.remainingTime -= execTime;
 
                 while (index < processes.size() && processes.get(index).arrivalTime <= currentTime) {
-                    queue.offer(processes.get(index++));
+                    queue.add(processes.get(index));
+                    index++;
                 }
 
                 if (p.remainingTime > 0) {
-                    queue.offer(p);
+                    queue.add(p);
                 } else {
                     p.completionTime = currentTime;
                     p.turnaroundTime = p.completionTime - p.arrivalTime;
