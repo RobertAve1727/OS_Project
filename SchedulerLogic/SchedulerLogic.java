@@ -337,11 +337,17 @@ public class SchedulerLogic {
     }
 
     public static double average(List<Process> processes, String metric) {
-        return processes.stream().mapToDouble(p -> {
-            switch (metric) {
-                case "TAT": return p.turnaroundTime;
-                case "RT": return p.responseTime;
-                default: return 0;
-        }}).average().orElse(0);
+        double total = 0;
+        int count = processes.size();
+
+        for (Process p : processes) {
+            if (metric.equals("TAT")) {
+                total += p.turnaroundTime;
+            } else if (metric.equals("RT")) {
+                total += p.responseTime;
+            }
+        }
+
+        return count > 0 ? total / count : 0;
     }
 }
