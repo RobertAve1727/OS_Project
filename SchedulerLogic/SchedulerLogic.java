@@ -1,5 +1,7 @@
 import java.util.*;
 
+import javax.swing.JOptionPane;
+
 class Process {
     String pid;
     int arrivalTime, burstTime, remainingTime;
@@ -223,43 +225,41 @@ public class SchedulerLogic {
         return result;
     }
 
-    public static List<Process> mlfq(List<Process> processes, int baseQuantum) {
+    public static List<Process> mlfq(List<Process> processes, int quantum, int mlfqBase) {
+        if (quantum <= 0 || mlfqBase <= 0) {
+            JOptionPane.showMessageDialog(null, "Quantum and MLFQ base must be greater than 0.", "Error", JOptionPane.ERROR_MESSAGE);
+            return new ArrayList<>();
+        }
+
         executionLog.clear();
 
-        // 4 levels of queues
         ArrayList<Process>[] queues = new ArrayList[4];
         for (int i = 0; i < 4; i++) queues[i] = new ArrayList<>();
 
         List<Process> result = new ArrayList<>();
-        List<Process> all = new ArrayList<>(processes);  
-        all.sort(Comparator.comparingInt(p -> p.arrivalTime));  
+        List<Process> all = new ArrayList<>(processes);
+        all.sort(Comparator.comparingInt(p -> p.arrivalTime));
 
-        int[] quantums = { baseQuantum, baseQuantum * 2, baseQuantum * 4, baseQuantum * 8 };
         int time = 0, completed = 0, index = 0;
         String prevPid = "";
 
-        // Array to track levels of each process
-        String[] pidList = new String[processes.size()];
-        int[] levels = new int[processes.size()];
-        for (int i = 0; i < processes.size(); i++) {
-            pidList[i] = processes.get(i).pid;
-            levels[i] = 0;
+        Map<String, Integer> levelMap = new HashMap<>();
+        Map<String, Integer> levelTimeUsed = new HashMap<>();
+
+        for (Process p : processes) {
+            levelMap.put(p.pid, 0);
+            levelTimeUsed.put(p.pid, 0);
         }
 
         while (completed < processes.size()) {
-            // Enqueue newly arrived processes to Q0
             while (index < all.size() && all.get(index).arrivalTime <= time) {
-                queues[0].add(all.get(index));
-                for (int i = 0; i < pidList.length; i++) {
-                    if (pidList[i].equals(all.get(index).pid)) {
-                        levels[i] = 0;
-                        break;
-                    }
-                }
+                Process p = all.get(index);
+                queues[0].add(p);
+                levelMap.put(p.pid, 0);
+                levelTimeUsed.put(p.pid, 0);
                 index++;
             }
 
-            // Select next process from highest-priority non-empty queue
             Process current = null;
             int currentLevel = -1;
             for (int i = 0; i < 4; i++) {
@@ -269,14 +269,13 @@ public class SchedulerLogic {
                     break;
                 }
             }
-            
+
             if (current == null) {
                 executionLog.add("IDLE");
                 time++;
                 continue;
             }
 
-            // Context switch delay
             if (!prevPid.isEmpty() && !prevPid.equals(current.pid)) {
                 for (int i = 0; i < contextSwitchDelay; i++) {
                     executionLog.add("CS");
@@ -289,38 +288,37 @@ public class SchedulerLogic {
                 current.started = true;
             }
 
-            int q = quantums[currentLevel];
-            int execTime = Math.min(q, current.remainingTime);
+            String pid = current.pid;
+            int used = levelTimeUsed.get(pid);
+            int remainingAllotment = mlfqBase - used;
 
-            // Simulate execution
-            for (int i = 0; i < execTime; i++) {
-                executionLog.add(current.pid + "[Q" + currentLevel + "]");
+            int slice = Math.min(quantum, Math.min(current.remainingTime, remainingAllotment));
+
+            for (int i = 0; i < slice; i++) {
+                executionLog.add(pid + "[Q" + currentLevel + "]");
                 time++;
             }
 
-            current.remainingTime -= execTime;
+            current.remainingTime -= slice;
+            levelTimeUsed.put(pid, used + slice);
 
-            // Add new arrivals again during execution
             while (index < all.size() && all.get(index).arrivalTime <= time) {
-                queues[0].add(all.get(index));
-                for (int i = 0; i < pidList.length; i++) {
-                    if (pidList[i].equals(all.get(index).pid)) {
-                        levels[i] = 0;
-                        break;
-                    }
-                }
+                Process p = all.get(index);
+                queues[0].add(p);
+                levelMap.put(p.pid, 0);
+                levelTimeUsed.put(p.pid, 0);
                 index++;
             }
 
             if (current.remainingTime > 0) {
-                // Demote to next lower level (up to Q3)
-                int nextLevel = Math.min(3, currentLevel + 1);
-                queues[nextLevel].add(current);
-                for (int i = 0; i < pidList.length; i++) {
-                    if (pidList[i].equals(current.pid)) {
-                        levels[i] = nextLevel;
-                        break;
-                    }
+                int newUsed = levelTimeUsed.get(pid);
+                if (newUsed >= mlfqBase && currentLevel < 3) {
+                    int nextLevel = currentLevel + 1;
+                    queues[nextLevel].add(current);
+                    levelMap.put(pid, nextLevel);
+                    levelTimeUsed.put(pid, 0); // Reset time used at new level
+                } else {
+                    queues[currentLevel].add(current);
                 }
             } else {
                 current.completionTime = time;
@@ -330,11 +328,13 @@ public class SchedulerLogic {
                 completed++;
             }
 
-            prevPid = current.pid;
+            prevPid = pid;
         }
 
         return result;
     }
+
+
 
     public static double average(List<Process> processes, String metric) {
         double total = 0;

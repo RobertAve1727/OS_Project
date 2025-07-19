@@ -116,7 +116,7 @@ public class SchedulerGUI extends JFrame {
             case "SJF": result = SchedulerLogic.sjf(processes); break;
             case "SRTF": result = SchedulerLogic.srtf(processes); break;
             case "Round Robin": result = SchedulerLogic.roundRobin(processes, quantum); break;
-            case "MLFQ": result = SchedulerLogic.mlfq(processes, baseQuantum); break;
+            case "MLFQ": result = SchedulerLogic.mlfq(processes, quantum, baseQuantum); break;
         }
 
         displayResults(result);
